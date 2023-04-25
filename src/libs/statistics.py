@@ -2,7 +2,7 @@ from functools import lru_cache
 from typing import final
 import numpy as np
 
-from .math import z_fisher_transform, laplace_transform
+from .math import z_fisher_transform, laplace_transform, kendall_tau
 
 
 class Base:
@@ -23,7 +23,6 @@ class Base:
 
         self.cov = np.cov(X.T, ddof=1)
         self.cov_inv = np.linalg.inv(self.cov)
-        print(self.cov_inv)
 
         self.__error_type_I = np.zeros(self.cov.shape)
         self.__error_type_II = np.zeros(self.cov.shape)
@@ -103,8 +102,48 @@ class Pearson(Base):
 
     def _correction_impl(self, values: np.ndarray) -> np.ndarray:
         # Bonferroni correction
-        print(values)
         return np.clip(self.hypothesis_count * 2 * values, 0, 1)
+
+    def _is_edge_impl(self, value: float) -> float:
+        return value < self.alpha
+    
+
+class Kendall(Base):
+
+    def __init__(self, X: np.ndarray, true_model: np.ndarray, alpha: float = 0.05) -> None:
+        super().__init__(X, true_model, alpha)
+        self.D_tau = np.sqrt(2 * (2 * self.n + 5) / (9 * self.n * (self.n - 1)))
+
+    def _value_impl(self, i: int, j: int) -> float:
+        mask = [it for it in range(self.p) if it != i and it != j]
+
+        Xij = self.X[:, mask]
+        Xi = self.X[:, i]
+        Xj = self.X[:, j]
+        
+        beta_i = np.dot(np.dot(np.linalg.inv(np.dot(Xij.T, Xij)), Xij.T), Xi)
+        beta_j = np.dot(np.dot(np.linalg.inv(np.dot(Xij.T, Xij)), Xij.T), Xj)
+
+        res_i = Xi - np.dot(Xij, beta_i)
+        res_j = Xj - np.dot(Xij, beta_j)
+
+        t = np.abs(kendall_tau(res_i, res_j) / self.D_tau)
+
+        p = 2 * (1 - laplace_transform(t))
+
+        return p
+    
+    def _correction_impl(self, values: np.ndarray) -> np.ndarray:
+        # Holm correction
+        flat = values.ravel()
+        indexes_in_sorted_order = np.argsort(flat) + 1
+        for i, pvalue in enumerate(flat):
+            index = indexes_in_sorted_order[i]
+            flat[i] = np.clip((self.hypothesis_count - index + 1) * pvalue, 0, 1)
+        return flat.reshape(values.shape)
+
+        # Bonferroni correction
+        # return np.clip(self.hypothesis_count * 2 * values, 0, 1)
 
     def _is_edge_impl(self, value: float) -> float:
         return value < self.alpha

@@ -1,5 +1,5 @@
 from libs.distibutions import mixed_distribution, n_generators
-from libs.statistics import Pearson
+from libs.statistics import Pearson, Kendall
 import numpy as np
 
 
@@ -31,7 +31,7 @@ if __name__ == '__main__':
         [-5,9,7,-8],
         [6,-11,-8,10]
     ])
-    print(pcorr_from_cov(cov))
+
     with np.printoptions(precision=3, suppress=True):
         gen = n_generators(1, 1234)[0]
 
@@ -43,6 +43,9 @@ if __name__ == '__main__':
         )
 
         pearson = Pearson(X, (cov_inv != 0))
+        kendall = Kendall(X, (cov_inv != 0))
 
         print(pearson.value())
+        print()
+        print(kendall.value())
 

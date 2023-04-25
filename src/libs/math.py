@@ -24,3 +24,8 @@ def laplace_transform(x: np.ndarray) -> np.ndarray:
         np.ndarray: transformed matrix
     """
     return stats.norm.cdf(x)
+
+
+def kendall_tau(x: np.ndarray, y: np.ndarray) -> float:
+    tau, pvalue = stats.kendalltau(x, y)
+    return tau
