@@ -27,5 +27,22 @@ def laplace_transform(x: np.ndarray) -> np.ndarray:
 
 
 def kendall_tau(x: np.ndarray, y: np.ndarray) -> float:
-    tau, pvalue = stats.kendalltau(x, y)
+    """Calculate Kendalls correlation coefficient
+
+    Args:
+        x (np.ndarray): lhs
+        y (np.ndarray): rhs
+
+    Returns:
+        float: kendalls correlation coefficient
+    """
+    tau, _ = stats.kendalltau(x, y)
     return tau
+
+
+def bonferroni_method(
+    pvalues: np.ndarray,
+    hypothesis_count: int, 
+    alpha: float
+) -> np.ndarray:
+    return np.array(hypothesis_count * 2 * pvalues > alpha, dtype=float)

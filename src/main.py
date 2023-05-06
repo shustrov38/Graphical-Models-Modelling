@@ -1,22 +1,29 @@
 from libs.distibutions import mixed_distribution, n_generators
-from libs.statistics import Pearson, Kendall
+from libs.statistics.pearson import Pearson
+from libs.statistics.kendall import Kendall
 import numpy as np
 
+from typing import Tuple, Any
+import multiprocessing
 
-def pcorr_from_cov(cov: np.ndarray) -> np.ndarray:
-    p = cov.shape[1]
-    cov_inv = np.linalg.inv(cov)
 
-    pcorr = np.zeros((p, p))
-    for i in range(p):
-        for j in range(p):  
-            pcorr[i, j] = -cov_inv[i, j] / np.sqrt(cov_inv[i, i] * cov_inv[j, j])
-        pcorr[i, i] = 1
+def process(args: Tuple[Any]) -> None:
+    num_tries, gen, n, mean, cov, model = args
 
-    return pcorr
+    for _ in range(num_tries):
+        X = mixed_distribution(
+            mean=mean,
+            cov=cov, 
+            n=n,
+            generator=gen,
+        )
 
+        model.process_samples(X)
+
+    return model
 
 if __name__ == '__main__':
+    n = 30
     p = 4
     mean = np.zeros(p)
     cov_inv = np.array([
@@ -31,21 +38,33 @@ if __name__ == '__main__':
         [-5,9,7,-8],
         [6,-11,-8,10]
     ])
+    true_model = (cov_inv != 0)
+
 
     with np.printoptions(precision=3, suppress=True):
-        gen = n_generators(1, 1234)[0]
+        num_procs = 10
 
-        X = mixed_distribution(
-            mean=mean,
-            cov=cov, 
-            n=3000,
-            generator=gen,
-        )
+        gen = n_generators(n=num_procs)
+        models = [Kendall(n, p, true_model, correction_method='holm') for _ in range(num_procs)]
+        
+        num_tries = 10000
 
-        pearson = Pearson(X, (cov_inv != 0))
-        kendall = Kendall(X, (cov_inv != 0))
+        step = num_tries // num_procs
+        args = []
+        for i in range(num_procs):
+            args.append((step, gen[i], n, mean, cov, models[i]))
 
-        print(pearson.value())
+        with multiprocessing.Pool(processes=num_procs) as pool:
+            models = pool.map(process, args)
+
+        result_model = models[0]
+        for i in range(1, num_procs):
+            result_model += models[i]
+
+        print(result_model.__class__)
+        print('Ошибка первого рода:')
+        print(result_model.error_type_I)
+        print('FWER:', result_model.fwer_error_type_I)
         print()
-        print(kendall.value())
-
+        print('Ошибка второго рода:')
+        print(result_model.error_type_II)
